@@ -25,7 +25,7 @@ export function adminKeyboard() {
       [{ text: '👥 Xodim qo\'shish' }, { text: '🔑 Admin qo\'shish' }],
       [{ text: '📊 Kunlik hisobot' }, { text: '📅 Oylik hisobot' }],
       [{ text: '📋 Xodimlar ro\'yxati' }, { text: '🗑 Xodimni o\'chirish' }],
-      [{ text: '📢 Guruhlar' }],
+      [{ text: '📢 Guruhlar' }, { text: '📊 Google Sheets' }],
     ],
     resize_keyboard: true,
     persistent: true,

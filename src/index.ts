@@ -11,7 +11,7 @@ import {
   handleAddEmployee,
   handleAddAdmin,
   handleEmployeeList, handleDeleteEmployee, handleDeleteCallback,
-  handleDailyReport, handleMonthlyReport, handleGroupList,
+  handleDailyReport, handleMonthlyReport, handleGroupList, handleGoogleSheetsLink
 } from './handlers/admin';
 import {
   autoCheckoutAll, getAllAdminTgIds, getAllActiveEmployees,
@@ -119,6 +119,7 @@ bot.on('message:text', async (ctx) => {
   if (text === '📋 Xodimlar ro\'yxati') { await handleEmployeeList(ctx); return; }
   if (text === '🗑 Xodimni o\'chirish') { await handleDeleteEmployee(ctx); return; }
   if (text === '📢 Guruhlar') { await handleGroupList(ctx); return; }
+  if (text === '📊 Google Sheets') { await handleGoogleSheetsLink(ctx); return; }
 });
 
 // ─── Inline tugmalar ──────────────────────────────────────────────────────────

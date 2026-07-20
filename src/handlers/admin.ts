@@ -239,3 +239,17 @@ async function sendReport(ctx: MyContext, startDate: string, endDate: string, ti
     await ctx.reply(`❌ Xato: ${e.message}`, { reply_markup: adminKeyboard() });
   }
 }
+
+// ─── Google Sheets Havolasi ───────────────────────────────────────────────────
+
+export async function handleGoogleSheetsLink(ctx: MyContext) {
+  const tgId = ctx.from?.id;
+  if (!tgId || !(await findAdminByTgId(tgId))) return;
+
+  const sheetUrl = 'https://docs.google.com/spreadsheets/d/1ntDRBYK1U8__Lg6-KaB0LCaX7Q963nPwEdki4X3L45Y8/edit';
+  
+  await ctx.reply(
+    `📊 <b>Google Sheets orqali jonli davomatni ko'rish:</b>\n\n<a href="${sheetUrl}">Jadvalni ochish</a>`,
+    { parse_mode: 'HTML', reply_markup: adminKeyboard(), link_preview_options: { is_disabled: true } }
+  );
+}
