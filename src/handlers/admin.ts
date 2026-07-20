@@ -6,8 +6,9 @@ import {
   getAttendanceReport, getAllGroupChats, removeGroupChat,
 } from '../db';
 import { generateEmployeeCode, generateAdminCode } from '../utils/codeGen';
-import { todayDate } from '../utils/time';
+import { todayDate, formatTime } from '../utils/time';
 import { buildExcel, AttendanceRow } from '../utils/excel';
+import { sendFullReportToSheets } from '../utils/sheets';
 import { InlineKeyboard, InputFile } from 'grammy';
 
 // ─── Xodim qo'shish ───────────────────────────────────────────────────────────
@@ -220,6 +221,20 @@ async function sendReport(ctx: MyContext, startDate: string, endDate: string, ti
       new InputFile(buffer, filename),
       { caption: `📊 <b>${title}</b>\n📅 ${startDate} → ${endDate}\n👥 Jami: ${rows.length} ta yozuv`, parse_mode: 'HTML', reply_markup: adminKeyboard() }
     );
+
+    // Google Sheets-ga to'liq hisobot yuborish
+    const sheetsRecords = reportRows.map(r => ({
+      employee_name: r.full_name,
+      date: r.date,
+      status: r.status,
+      arrived_at: r.arrived_at ? formatTime(r.arrived_at) : '',
+      left_at: r.left_at ? formatTime(r.left_at) : '',
+      late_minutes: r.late_minutes,
+      late_reason: r.late_reason || '',
+      early_leave_reason: r.early_leave_reason || '',
+      fine_percent: r.fine_percent,
+    }));
+    sendFullReportToSheets(sheetsRecords).catch(e => console.error('Sheets full report error:', e));
   } catch (e: any) {
     await ctx.reply(`❌ Xato: ${e.message}`, { reply_markup: adminKeyboard() });
   }

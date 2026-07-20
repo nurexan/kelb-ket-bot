@@ -7,6 +7,7 @@ import {
 import { todayDate, calcLateMinutes, formatTime, currentHour, nowTashkent } from '../utils/time';
 import { LATE_FINE_PERCENT, WORK_END_HOUR } from '../config';
 import { bot } from '../bot';
+import { syncAttendanceToSheets } from '../utils/sheets';
 
 // ─── Guruhga xabar yuborish yordamchi funksiyasi ──────────────────────────────
 
@@ -61,6 +62,20 @@ export async function handleArrived(ctx: MyContext) {
     late_minutes: lateMinutes,
     fine_percent: finePercent,
   });
+
+  // Google Sheets-ga sync
+  syncAttendanceToSheets({
+    action: 'sync_attendance',
+    employee_name: emp.full_name,
+    date,
+    status,
+    arrived_at: formatTime(now.toISOString()),
+    left_at: '',
+    late_minutes: lateMinutes,
+    late_reason: '',
+    early_leave_reason: '',
+    fine_percent: finePercent,
+  }).catch(e => console.error('Sheets sync error:', e));
 
   if (!isLate) {
     const arrivalMsg = `✅ <b>O'z vaqtida keldingiz!</b>\n👤 ${emp.full_name}\n⏰ ${formatTime(now.toISOString())}\n📅 ${date}`;
@@ -127,6 +142,20 @@ export async function handleLateReason(ctx: MyContext) {
 
   const date = todayDate();
   await upsertAttendance(emp.id, date, { status: 'late_notified', late_reason: reason });
+
+  // Google Sheets-ga sync
+  syncAttendanceToSheets({
+    action: 'sync_attendance',
+    employee_name: emp.full_name,
+    date,
+    status: 'late_notified',
+    arrived_at: '',
+    left_at: '',
+    late_minutes: 0,
+    late_reason: reason,
+    early_leave_reason: '',
+    fine_percent: 0,
+  }).catch(e => console.error('Sheets sync error:', e));
 
   ctx.session.state = 'idle';
   await ctx.reply(
@@ -198,6 +227,21 @@ export async function handleEarlyLeaveReason(ctx: MyContext) {
     left_early: true,
     early_leave_reason: reason,
   });
+
+  // Google Sheets-ga sync
+  const existing2 = await getTodayAttendance(emp.id, date);
+  syncAttendanceToSheets({
+    action: 'sync_attendance',
+    employee_name: emp.full_name,
+    date,
+    status: existing2?.status || 'on_time',
+    arrived_at: existing2?.arrived_at ? formatTime(existing2.arrived_at) : '',
+    left_at: formatTime(now.toISOString()),
+    late_minutes: existing2?.late_minutes || 0,
+    late_reason: existing2?.late_reason || '',
+    early_leave_reason: reason,
+    fine_percent: existing2?.fine_percent || 0,
+  }).catch(e => console.error('Sheets sync error:', e));
 
   ctx.session.state = 'idle';
   await ctx.reply(
