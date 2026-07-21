@@ -5,6 +5,7 @@ import {
   bindEmployeeTgId, bindAdminTgId,
   bindEmployeeTgIdAndName, bindAdminTgIdAndName
 } from '../db';
+import { syncEmployeeToSheets } from '../utils/sheets';
 
 // ─── Klaviaturalar ────────────────────────────────────────────────────────────
 
@@ -149,6 +150,9 @@ export async function handleEnteringEmployeeName(ctx: MyContext) {
   try {
     await bindEmployeeTgIdAndName(empId, tgId, name);
     
+    // Google Sheets sync
+    syncEmployeeToSheets(name).catch((e: any) => console.error('Sheets sync error:', e));
+
     ctx.session.state = 'idle';
     ctx.session.tempEmpId = undefined;
     

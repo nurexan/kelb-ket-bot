@@ -86,3 +86,25 @@ export async function sendFullReportToSheets(records: FullReportRecord[]): Promi
     console.error('Sheets full report xato:', err);
   }
 }
+
+/**
+ * Yangi xodim ro'yxatdan o'tganda Sheets-ga yuborish
+ */
+export async function syncEmployeeToSheets(employeeName: string): Promise<void> {
+  if (!SHEETS_WEBHOOK_URL) return;
+
+  try {
+    await fetch(SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'sync_employee',
+        employee_name: employeeName,
+      }),
+      redirect: 'follow',
+    });
+    console.log('✅ Sheets employee sync muvaffaqiyatli:', employeeName);
+  } catch (err) {
+    console.error('Sheets employee sync error:', err);
+  }
+}
