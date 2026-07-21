@@ -246,7 +246,7 @@ export async function handleGoogleSheetsLink(ctx: MyContext) {
   const tgId = ctx.from?.id;
   if (!tgId || !(await findAdminByTgId(tgId))) return;
 
-  const sheetUrl = 'https://docs.google.com/spreadsheets/d/1o8MUS_6YlmITjYA4u-I8BOjz4QyJqBO5xY6Uv8H98Y8/edit?usp=sharing';
+  const sheetUrl = 'https://docs.google.com/spreadsheets/d/1RAowRWq5_U4Ve1sedNbn12PZFdfXYrPUT-UGhYugr80/edit';
   
   await ctx.reply(
     `📊 <b>Google Sheets orqali jonli davomatni ko'rish:</b>\n\n<a href="${sheetUrl}">Jadvalni ochish</a>`,
