@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.kk_attendance (
   early_leave_reason TEXT,
   late_reason TEXT,
   fine_percent NUMERIC DEFAULT 0,
+  fine_amount NUMERIC DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(employee_id, date)
 );
@@ -47,3 +48,9 @@ CREATE TABLE IF NOT EXISTS public.kk_group_chats (
 INSERT INTO public.kk_admins (unique_code, full_name, telegram_id)
 VALUES ('ADM-NUREXAN', 'Nurexan', 7832781255)
 ON CONFLICT (unique_code) DO NOTHING;
+
+-- 6. Qo'shimcha ustunlar (agar bazada bo'lmasa qo'shish uchun)
+ALTER TABLE public.kk_attendance ADD COLUMN IF NOT EXISTS fine_amount NUMERIC DEFAULT 0;
+ALTER TABLE public.kk_attendance ADD COLUMN IF NOT EXISTS expected_leave_at TIMESTAMPTZ;
+ALTER TABLE public.kk_attendance ADD COLUMN IF NOT EXISTS leave_reminder_sent BOOLEAN DEFAULT false;
+

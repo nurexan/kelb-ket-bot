@@ -1,0 +1,22 @@
+export const MOTIVATIONAL_QUOTES = [
+  "Muvaffaqiyat - bu har kuni takrorlanadigan kichik intilishlar yig'indisidir.",
+  "Eng qiyin qadam - bu birinchi qadam. Qolgani shunchaki davomiylik.",
+  "Agar siz o'zingizga ishonmasangiz, boshqalar nima uchun sizga ishonishi kerak?",
+  "Hech narsa qilmaslikdan ko'ra, xato qilib nimadir o'rganish yaxshiroq.",
+  "Bugun qilgan mehnatingiz ertangi kuningizning poydevoridir.",
+  "Muammolar - bu sizni o'stirish uchun yuborilgan imkoniyatlardir.",
+  "Yiqilish - bu tugatish emas, u orqali qanday o'rnidan turishni o'rganasiz.",
+  "Sabr - bu kutish qobiliyati emas, balki kutayotganda to'g'ri munosabatda bo'lishdir.",
+  "Hech qachon taslim bo'lmang. Eng qorong'i tun ham tong otishidan dalolat beradi.",
+  "O'z-o'zingizga qanday gapirishingiz, hayotingiz qanday bo'lishini belgilaydi.",
+  "Agar maqsadingiz bo'lmasa, boshqalar o'z maqsadlari yo'lida sizdan foydalanishadi.",
+  "Vaqt hamma narsani hal qilmaydi, harakat hal qiladi.",
+  "Katta natijalarga erishish uchun kichik narsalarni ham mukammal qilish kerak.",
+  "Agar bugun o'zgarish qilmasangiz, ertaga ham bugungi kundek bo'ladi.",
+  "Muvaffaqiyatga eltuvchi yagona yo'l - bu taslim bo'lmaslik.",
+  "Kutib o'tirmang, vaqt hech qachon 'to'g'ri' bo'lmaydi.",
+  "Sizning eng katta raqibingiz - kechagi o'zingiz.",
+  "Maqsadlar orzularni rejalarga aylantiradi.",
+  "Faqat o'ziga ishonadigan insonlargina imkonsizni amalga oshira oladilar.",
+  "G'alabaning asosiy siri - tayyorgarlik."
+];

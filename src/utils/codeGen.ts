@@ -1,8 +1,3 @@
-/** Xodim kodi generatsiyasi: EMP-XXXXXX */
-export function generateEmployeeCode(): string {
-  return 'EMP-' + randomSuffix();
-}
-
 /** Admin kodi generatsiyasi: ADM-XXXXXX */
 export function generateAdminCode(): string {
   return 'ADM-' + randomSuffix();

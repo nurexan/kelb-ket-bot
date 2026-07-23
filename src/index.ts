@@ -4,11 +4,18 @@ import { bot } from './bot';
 import { initDatabase } from './migrate';
 import { handleStart, handleCodeEntry, handleEnteringEmployeeName, handleEnteringAdminName } from './handlers/auth';
 import {
-  handleArrived, handleWillBeLate, handleLateReason,
-  handleEarlyLeave, handleEarlyLeaveReason,
+  handleArrived,
+  handleWillBeLate,
+  handleLateReason,
+  handleEarlyLeave,
+  handleEarlyLeaveReason,
+  handleAdvanceTrip,
+  handleTripReason,
+  handleLocation,
+  handleAdvanceLate,
+  handleAdvanceLateReason,
 } from './handlers/employee';
 import {
-  handleAddEmployee,
   handleAddAdmin,
   handleEmployeeList, handleDeleteEmployee, handleDeleteCallback,
   handleDailyReport, handleMonthlyReport, handleGroupList, handleGoogleSheetsLink
@@ -18,6 +25,7 @@ import {
   saveGroupChat, removeGroupChat, getAllGroupChatIds,
 } from './db';
 import { todayDate, formatTime } from './utils/time';
+import { syncAttendanceToSheets } from './utils/sheets';
 import { TIMEZONE } from './config';
 
 // ─── /start ──────────────────────────────────────────────────────────────────
@@ -71,8 +79,19 @@ bot.on('message:text', async (ctx) => {
   // Guruh xabarlarini e'tiborsiz qoldirish (faqat private)
   if (ctx.chat.type !== 'private') return;
 
-  const state = ctx.session.state;
+  let state = ctx.session.state;
   const text = ctx.message.text;
+
+  const tgId = ctx.from?.id;
+  if (tgId) {
+    const { findEmployeeByTgId } = await import('./db');
+    const emp = await findEmployeeByTgId(tgId);
+    if (emp && emp.is_active && emp.full_name === 'Ism kiritilmoqda') {
+      ctx.session.state = 'employee_entering_name';
+      ctx.session.tempEmpId = emp.id;
+      state = 'employee_entering_name';
+    }
+  }
 
   // Kodga kiritish
   if (state === 'entering_code') {
@@ -89,6 +108,25 @@ bot.on('message:text', async (ctx) => {
   // Xodim: erta ketish sababi
   if (state === 'entering_early_leave_reason') {
     await handleEarlyLeaveReason(ctx);
+    return;
+  }
+
+  // Ketish vaqtini uzaytirish (17:45 eslatmasi)
+  if (state === 'entering_extend_time') {
+    const { handleExtendTime } = await import('./handlers/employee');
+    await handleExtendTime(ctx);
+    return;
+  }
+
+  // Xodim: Kech qolish (ertaga) sababi
+  if (state === 'entering_advance_late_reason') {
+    await handleAdvanceLateReason(ctx);
+    return;
+  }
+
+  // Xodim: Bozorga borish (xizmat safari) sababi
+  if (state === 'entering_trip_reason') {
+    await handleTripReason(ctx);
     return;
   }
 
@@ -110,9 +148,10 @@ bot.on('message:text', async (ctx) => {
   if (text === '✅ Keldim') { await handleArrived(ctx); return; }
   if (text === '🕐 Kech qolaman') { await handleWillBeLate(ctx); return; }
   if (text === '🚪 Sababli ketmoqchiman') { await handleEarlyLeave(ctx); return; }
+  if (text === '🚗 Ertaga xizmat safari') { await handleAdvanceTrip(ctx); return; }
+  if (text === '⏰ Ertaga kech qolaman') { await handleAdvanceLate(ctx); return; }
 
   // Admin tugmalar
-  if (text === '👥 Xodim qo\'shish') { await handleAddEmployee(ctx); return; }
   if (text === '🔑 Admin qo\'shish') { await handleAddAdmin(ctx); return; }
   if (text === '📊 Kunlik hisobot') { await handleDailyReport(ctx); return; }
   if (text === '📅 Oylik hisobot') { await handleMonthlyReport(ctx); return; }
@@ -122,9 +161,105 @@ bot.on('message:text', async (ctx) => {
   if (text === '📊 Google Sheets') { await handleGoogleSheetsLink(ctx); return; }
 });
 
+// ─── Lokatsiya kelganda (Xizmat safari) ──────────────────────────────────────
+bot.on('message:location', async (ctx) => {
+  await handleLocation(ctx);
+});
+
 // ─── Inline tugmalar ──────────────────────────────────────────────────────────
 
-bot.on('callback_query:data', handleDeleteCallback);
+bot.on('callback_query:data', async (ctx) => {
+  const data = ctx.callbackQuery?.data;
+  if (!data) return;
+
+  if (data === 'request_join') {
+    const { handleRequestJoin } = await import('./handlers/auth');
+    await handleRequestJoin(ctx);
+    return;
+  }
+
+  if (data.startsWith('join_accept_')) {
+    const { handleJoinAccept } = await import('./handlers/auth');
+    await handleJoinAccept(ctx);
+    return;
+  }
+
+  if (data.startsWith('join_reject_')) {
+    const { handleJoinReject } = await import('./handlers/auth');
+    await handleJoinReject(ctx);
+    return;
+  }
+
+  if (data === 'enter_code') {
+    ctx.session.state = 'entering_code';
+    await ctx.reply(
+      `🔑 Iltimos, sizga berilgan <b>unikal kodni</b> kiriting:\n<i>(Masalan: EMP-7X9K3M yoki ADM-3Q5R8L)</i>`,
+      { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+    );
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  if (data.startsWith('trip_')) {
+    const { handleTripCallback } = await import('./handlers/admin');
+    await handleTripCallback(ctx);
+    return;
+  }
+
+  if (data.startsWith('leave_')) {
+    const { handleLeaveReminderCallback } = await import('./handlers/employee');
+    await handleLeaveReminderCallback(ctx);
+    return;
+  }
+
+  await handleDeleteCallback(ctx);
+});
+
+// ─── ⏰ Har daqiqa tekshirish (17:45 eslatmalari uchun) ────────────────────────
+cron.schedule('* * * * *', async () => {
+  const date = todayDate();
+  const d = new Date(new Date().toLocaleString('sv-SE', { timeZone: TIMEZONE }).replace(' ', 'T'));
+  
+  // 17:45 ga yetganini aniqlaymiz yoki agar expected_leave_at o'rnatilgan bo'lsa uni tekshiramiz
+  const isDefaultReminderTime = d.getHours() === 17 && d.getMinutes() >= 45;
+  
+  // Custom reminderlarga ham shu soat atrofida qaraymiz:
+  // Hozirgi vaqtni 15 daqiqa keyinga suramiz (expected_leave_at - 15m)
+  d.setMinutes(d.getMinutes() + 15);
+  const futureTime = d.toISOString();
+
+  try {
+    const { getPendingLeaveReminders, markLeaveReminderSent, findEmployeeById } = await import('./db');
+    const { InlineKeyboard } = await import('grammy');
+    
+    // Aslida getPendingLeaveReminders qachon ishlashi kerak:
+    // Agar soat 17:45 dan o'tgan bo'lsa va expected_leave_at yo'q bo'lsa
+    // Yoki expected_leave_at hozir+15m dan kichik bo'lsa (ya'ni ketishga <=15m qolsa)
+    
+    const pendings = await getPendingLeaveReminders(date, futureTime);
+    
+    for (const att of pendings) {
+      if (!isDefaultReminderTime && !att.expected_leave_at) continue; // Default reminder faqat 17:45 dan boshlanadi
+
+      const emp = await findEmployeeById(att.employee_id);
+      if (emp?.telegram_id) {
+        const kb = new InlineKeyboard()
+          .text('🚪 Ketdim', `leave_checkout_${att.id}`)
+          .text('⏳ Hali ishlarim o\'z yakuniga yetmadi', `leave_extend_${att.id}`);
+        
+        try {
+          await bot.api.sendMessage(emp.telegram_id,
+            `⏳ <b>Ish vaqtingiz o'z yakuniga yetmoqda.</b>\n\nIsh joyingizni tartibli, kunlik ishlaringiz o'z yakuniga yetgan bo'lsa sizga maroqli xordiq tilaymiz!`,
+            { parse_mode: 'HTML', reply_markup: kb }
+          );
+          await markLeaveReminderSent(att.id);
+        } catch { /* silent */ }
+      }
+    }
+  } catch (e) {
+    console.error('Leave reminder cron error:', e);
+  }
+}, { timezone: TIMEZONE, scheduled: true });
 
 // ─── ⏰ Avtomatik 18:00 ketdi (node-cron) ────────────────────────────────────
 
@@ -146,6 +281,19 @@ cron.schedule('0 18 * * 1-5', async () => {
           );
         } catch { /* silent */ }
       }
+      
+      syncAttendanceToSheets({
+        action: 'sync_attendance',
+        employee_name: emp.full_name,
+        date: date,
+        status: 'on_time', 
+        left_at: formatTime(now.toISOString()),
+        arrived_at: '',
+        late_minutes: 0,
+        late_reason: '',
+        early_leave_reason: '',
+        fine_amount: 0
+      }).catch((e: any) => console.error('Sheets sync error on auto-checkout:', e));
     }
 
     // Guruhga kunlik yakuniy xabar
@@ -192,6 +340,49 @@ cron.schedule('45 8 * * 1-5', async () => {
     }
   } catch (e) {
     console.error('8:45 eslatma xato:', e);
+  }
+}, { timezone: TIMEZONE, scheduled: true });
+
+// ─── ⏰ 8:20 Motivatsiya (Ish kunlari) ──────────────────────────────────────
+
+cron.schedule('20 8 * * 1-6', async () => {
+  console.log('⏰ 8:20 motivatsiya yuborilmoqda');
+  try {
+    const { MOTIVATIONAL_QUOTES } = await import('./utils/quotes');
+    const q = MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
+    
+    const employees = await getAllActiveEmployees();
+    for (const emp of employees) {
+      if (!emp.telegram_id) continue;
+      try {
+        await bot.api.sendMessage(emp.telegram_id,
+          `🌅 <b>Xayrli tong!</b>\n\n💡 <i>"${q}"</i>\n\nBugungi ishlaringizda muvaffaqiyat tilaymiz! ✨`,
+          { parse_mode: 'HTML' }
+        );
+      } catch { /* silent */ }
+    }
+  } catch (e) {
+    console.error('8:20 motivatsiya xato:', e);
+  }
+}, { timezone: TIMEZONE, scheduled: true });
+
+// ─── ⏰ 8:30 Yakshanba dam olish kuni xabari ─────────────────────────────────
+
+cron.schedule('30 8 * * 0', async () => {
+  console.log('⏰ 8:30 yakshanba xabari yuborilmoqda');
+  try {
+    const employees = await getAllActiveEmployees();
+    for (const emp of employees) {
+      if (!emp.telegram_id) continue;
+      try {
+        await bot.api.sendMessage(emp.telegram_id,
+          `🏖 <b>Bugun Yakshanba - dam olish kuni!</b>\n\nAgar shunchaki dam olish bo'lsa hech qanday amal amalga oshirmang, odatiy dam olish belgilanadi.\nOila a'zolaringizga sihat-salomatlik, ular bilan xayrli dam olish tilaymiz! 😊\n\n<i>Agar ishga bormoqchi bo'lsangiz "✅ Keldim" ni bosing.</i>`,
+          { parse_mode: 'HTML' }
+        );
+      } catch { /* silent */ }
+    }
+  } catch (e) {
+    console.error('8:30 yakshanba xato:', e);
   }
 }, { timezone: TIMEZONE, scheduled: true });
 

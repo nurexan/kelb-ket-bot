@@ -12,7 +12,10 @@ export type BotState =
   | 'admin_entering_admin_name'
   | 'admin_del_waiting'
   | 'employee_entering_name'
-  | 'admin_self_entering_name';
+  | 'admin_self_entering_name'
+  | 'entering_trip_reason'
+  | 'entering_advance_late_reason'
+  | 'entering_extend_time';
 
 export interface SessionData {
   state: BotState;
@@ -20,6 +23,7 @@ export interface SessionData {
   tempDeleteId?: string;
   tempEmpId?: string;
   tempAdminId?: string;
+  tempAttendanceId?: string;
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;
@@ -32,3 +36,7 @@ function initial(): SessionData {
 
 export const bot = new Bot<MyContext>(process.env.BOT_TOKEN!);
 bot.use(session({ initial }));
+
+bot.catch((err) => {
+  console.error(`❌ Bot error while handling update ${err.ctx.update.update_id}:`, err.error);
+});

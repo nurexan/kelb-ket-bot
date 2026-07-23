@@ -13,7 +13,7 @@ interface SyncData {
   late_minutes: number;
   late_reason: string;
   early_leave_reason: string;
-  fine_percent: number;
+  fine_amount: number;
 }
 
 interface FullReportRecord {
@@ -25,7 +25,7 @@ interface FullReportRecord {
   late_minutes: number;
   late_reason: string;
   early_leave_reason: string;
-  fine_percent: number;
+  fine_amount: number;
 }
 
 /**

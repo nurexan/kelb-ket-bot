@@ -11,7 +11,7 @@ export interface AttendanceRow {
   left_early: boolean;
   early_leave_reason: string | null;
   late_reason: string | null;
-  fine_percent: number;
+  fine_amount: number;
 }
 
 // ─── Ranglar ─────────────────────────────────────────────────────────────────
@@ -66,26 +66,12 @@ export async function buildExcel(rows: AttendanceRow[], title: string): Promise<
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Davomat Bot';
   const ws = wb.addWorksheet('Hisobot', {
-    views: [{ state: 'frozen', xSplit: 3, ySplit: 3 }],
+    views: [{ state: 'frozen', xSplit: 0, ySplit: 2 }],
   });
 
-  // ─── 1. Ma'lumotlarni strukturalashtirish ───────────────────────────────────
+  // ─── 1. Sarlavha qatori (1-qator) ──────────────────────────────────────────
 
-  // Noyob xodimlar ro'yxati (ism bo'yicha tartib)
-  const empMap = new Map<string, Map<string, AttendanceRow>>();
-  for (const r of rows) {
-    if (!empMap.has(r.full_name)) empMap.set(r.full_name, new Map());
-    empMap.get(r.full_name)!.set(r.date, r);
-  }
-
-  // Noyob sanalar (o'sish tartibida)
-  const allDates = [...new Set(rows.map(r => r.date))].sort();
-  const employees = [...empMap.keys()].sort();
-
-  // ─── 2. Sarlavha qatori (1-qator) ──────────────────────────────────────────
-
-  const totalCols = 3 + allDates.length + 2; // No + Ism + Rejadagi + sanalar + Keldi% + Jarima%
-  ws.mergeCells(1, 1, 1, totalCols);
+  ws.mergeCells(1, 1, 1, 8);
   const titleCell = ws.getCell(1, 1);
   titleCell.value = title;
   titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
@@ -93,11 +79,11 @@ export async function buildExcel(rows: AttendanceRow[], title: string): Promise<
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 32;
 
-  // ─── 3. Ustun sarlavhalari (2-qator) ───────────────────────────────────────
+  // ─── 2. Ustun sarlavhalari (2-qator) ───────────────────────────────────────
 
   const headerStyle = (cell: ExcelJS.Cell, val: string) => {
     cell.value = val;
-    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.header_bg } };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     cell.border = {
@@ -108,159 +94,85 @@ export async function buildExcel(rows: AttendanceRow[], title: string): Promise<
     };
   };
 
-  headerStyle(ws.getCell(2, 1), 'No');
-  headerStyle(ws.getCell(2, 2), 'F.I.SH.');
-  headerStyle(ws.getCell(2, 3), 'Rejadagi\nvaqt (09:00)');
+  headerStyle(ws.getCell(2, 1), '№');
+  headerStyle(ws.getCell(2, 2), 'Sana');
+  headerStyle(ws.getCell(2, 3), 'F.I.SH.');
+  headerStyle(ws.getCell(2, 4), 'Kelgan vaqt');
+  headerStyle(ws.getCell(2, 5), 'Ketgan vaqt');
+  headerStyle(ws.getCell(2, 6), 'Status');
+  headerStyle(ws.getCell(2, 7), 'Izoh (Sabab/Kechikish)');
+  headerStyle(ws.getCell(2, 8), 'Ushlanma (so\'m)');
 
-  // Sana sarlavhalari
-  for (let i = 0; i < allDates.length; i++) {
-    headerStyle(ws.getCell(2, 4 + i), fmtDate(allDates[i]));
-  }
+  ws.getRow(2).height = 30;
 
-  headerStyle(ws.getCell(2, 4 + allDates.length), 'Keldi\n%');
-  headerStyle(ws.getCell(2, 5 + allDates.length), 'Jarima\n%');
+  // ─── 3. Ma'lumotlarni yozish ───────────────────────────────────────────────
+  
+  // Ma'lumotlarni eng yangi sanadan eskisiga qarab va xodim bo'yicha saralash
+  const sortedRows = rows.sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date); // Yangi sanalar tepada
+    return a.full_name.localeCompare(b.full_name);
+  });
 
-  ws.getRow(2).height = 36;
+  for (let i = 0; i < sortedRows.length; i++) {
+    const r = sortedRows[i];
+    const rowNum = i + 3;
+    const row = ws.getRow(rowNum);
+    
+    // Status matni
+    let statusStr = 'Vaqtida';
+    if (r.status === 'late') statusStr = 'Kech qoldi';
+    else if (r.status === 'absent') statusStr = 'Kelmadi';
+    else if (r.status === 'late_notified') statusStr = 'Sababli (Kech)';
+    else if (r.status === 'late_notified_advance') statusStr = 'Ogohlantirilgan';
+    else if (r.status === 'trip' || r.status === 'trip_approved') statusStr = 'Xizmat safari';
 
-  // ─── 4. Xodimlar qatorlari ─────────────────────────────────────────────────
+    // Izoh
+    const izohArr: string[] = [];
+    if (r.late_minutes > 0) izohArr.push(`Kech: ${r.late_minutes} daq.`);
+    if (r.late_reason) izohArr.push(r.late_reason);
+    if (r.early_leave_reason) izohArr.push(`Erta ketish: ${r.early_leave_reason}`);
+    const izoh = izohArr.join(' | ');
 
-  let totalJarimaSum = 0;
-
-  for (let ei = 0; ei < employees.length; ei++) {
-    const empName = employees[ei];
-    const dateMap = empMap.get(empName)!;
-    const rowNum = 3 + ei;
-
-    // --- No
-    const noCell = ws.getCell(rowNum, 1);
-    noCell.value = ei + 1;
-    noCell.font = { bold: true, size: 10 };
-    noCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } };
-    noCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    noCell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-
-    // --- Ism
-    const nameCell = ws.getCell(rowNum, 2);
-    nameCell.value = empName;
-    nameCell.font = { bold: true, size: 10 };
-    nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } };
-    nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
-    nameCell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-
-    // --- Rejadagi vaqt
-    const timeCell = ws.getCell(rowNum, 3);
-    timeCell.value = '9:00';
-    timeCell.font = { size: 10 };
-    timeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } };
-    timeCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    timeCell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-
-    // --- Sanalar
-    let arrivedCount = 0;
-    let empTotalFine = 0;
-
-    for (let di = 0; di < allDates.length; di++) {
-      const date = allDates[di];
-      const rec = dateMap.get(date) ?? null;
-      const cellCol = 4 + di;
-      const cell = ws.getCell(rowNum, cellCol);
-
-      const status = rec ? rec.status : null;
-      const color = cellColor(status);
-      const symbol = cellSymbol(status);
-
-      cell.value = symbol;
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
-      cell.font = {
-        bold: true,
-        size: 12,
-        color: { argb: status === 'absent' ? 'FFFFFFFF' : 'FF000000' },
-      };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        right: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-      };
-
-      // Tooltip: kech qolish sababi, erta ketish
-      if (rec) {
-        let note = '';
-        if (rec.arrived_at) note += `Keldi: ${formatTime(rec.arrived_at)}`;
-        if (rec.late_minutes > 0) note += `\nKech: ${rec.late_minutes} daq`;
-        if (rec.late_reason) note += `\nSabab: ${rec.late_reason}`;
-        if (rec.left_at) note += `\nKetdi: ${formatTime(rec.left_at)}`;
-        if (rec.early_leave_reason) note += `\nKetish sababi: ${rec.early_leave_reason}`;
-        if (note) cell.note = note;
+    // Yozish
+    ws.getCell(rowNum, 1).value = i + 1; // №
+    ws.getCell(rowNum, 2).value = fmtDate(r.date); // Sana
+    ws.getCell(rowNum, 3).value = r.full_name; // Ism
+    ws.getCell(rowNum, 4).value = r.arrived_at ? formatTime(r.arrived_at) : '';
+    ws.getCell(rowNum, 5).value = r.left_at ? formatTime(r.left_at) : '';
+    ws.getCell(rowNum, 6).value = statusStr;
+    ws.getCell(rowNum, 7).value = izoh;
+    ws.getCell(rowNum, 8).value = r.fine_amount > 0 ? r.fine_amount : 0;
+    
+    // Rang va uslublar
+    const bgColor = cellColor(r.status);
+    for (let c = 1; c <= 8; c++) {
+      const cell = ws.getCell(rowNum, c);
+      cell.alignment = { vertical: 'middle', horizontal: (c === 3 || c === 7) ? 'left' : 'center', wrapText: true };
+      cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+      
+      // Status bo'yicha ranglash faqat Status va Ushlanma ustunlari uchun
+      if (c === 6) { // Status ustuni
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+        if (r.status === 'absent') cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
       }
-
-      if (status === 'on_time' || status === 'late' || status === 'late_notified') {
-        arrivedCount++;
+      if (c === 8 && r.fine_amount > 0) { // Ushlanma ustuni
+        cell.font = { color: { argb: 'FFB71C1C' }, bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.jarima_bg } };
+        cell.numFmt = '#,##0" so\'m"';
       }
-      if (rec) empTotalFine += rec.fine_percent;
     }
-
-    totalJarimaSum += empTotalFine;
-
-    // --- Keldi %
-    const pctCell = ws.getCell(rowNum, 4 + allDates.length);
-    const pct = allDates.length > 0 ? Math.round((arrivedCount / allDates.length) * 100) : 0;
-    pctCell.value = `${pct}%`;
-    pctCell.font = { bold: true, size: 10, color: { argb: pct >= 80 ? 'FF1B5E20' : 'FFB71C1C' } };
-    pctCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pct >= 80 ? 'FFC8E6C9' : 'FFFFCDD2' } };
-    pctCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    pctCell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-
-    // --- Jarima %
-    const fineCell = ws.getCell(rowNum, 5 + allDates.length);
-    fineCell.value = empTotalFine > 0 ? `-${empTotalFine}%` : '0%';
-    fineCell.font = { bold: true, size: 10, color: { argb: empTotalFine > 0 ? 'FFB71C1C' : 'FF1B5E20' } };
-    fineCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: empTotalFine > 0 ? COLOR.jarima_bg : 'FFC8E6C9' } };
-    fineCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    fineCell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-
-    ws.getRow(rowNum).height = 22;
   }
 
-  // ─── 5. Izoh (legend) qatorlari ────────────────────────────────────────────
+  // ─── 4. Ustun kengliklari ───────────────────────────────────────────────────
 
-  const legendRow = 3 + employees.length + 2;
-
-  const addLegend = (row: number, color: string, text: string, symbol: string) => {
-    const symbolCell = ws.getCell(row, 4);
-    symbolCell.value = symbol;
-    symbolCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
-    symbolCell.font = { bold: true, size: 11 };
-    symbolCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    symbolCell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-
-    const textCell = ws.getCell(row, 5);
-    textCell.value = text;
-    textCell.font = { size: 10 };
-    textCell.alignment = { horizontal: 'left', vertical: 'middle' };
-    ws.getRow(row).height = 20;
-  };
-
-  addLegend(legendRow,     COLOR.on_time,       'Vaqtida keldi',          '✔');
-  addLegend(legendRow + 1, COLOR.no_data,        'Vaqtida kelmadi',        '');
-  addLegend(legendRow + 2, COLOR.late_notified,  'Sababli kechikib keldi', '✔');
-  addLegend(legendRow + 3, COLOR.late_notified,  'Sababli kelmadi',        '');
-  addLegend(legendRow + 4, COLOR.absent,         'Sababsiz kelmadi',       '✘');
-  addLegend(legendRow + 5, COLOR.late,           'Kech qoldi (sababsiz)',   '✔');
-
-  // ─── 6. Ustun kengliklari ───────────────────────────────────────────────────
-
-  ws.getColumn(1).width = 6;   // No
-  ws.getColumn(2).width = 24;  // Ism
-  ws.getColumn(3).width = 14;  // Rejadagi vaqt
-
-  for (let i = 0; i < allDates.length; i++) {
-    ws.getColumn(4 + i).width = 12;
-  }
-
-  ws.getColumn(4 + allDates.length).width = 10;     // Keldi %
-  ws.getColumn(5 + allDates.length).width = 10;     // Jarima %
+  ws.getColumn(1).width = 5;   // No
+  ws.getColumn(2).width = 12;  // Sana
+  ws.getColumn(3).width = 25;  // F.I.SH.
+  ws.getColumn(4).width = 15;  // Keldi
+  ws.getColumn(5).width = 15;  // Ketdi
+  ws.getColumn(6).width = 18;  // Status
+  ws.getColumn(7).width = 35;  // Izoh
+  ws.getColumn(8).width = 18;  // Ushlanma
 
   const buf = await wb.xlsx.writeBuffer();
   return buf as unknown as Buffer;

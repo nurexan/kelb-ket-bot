@@ -1,43 +1,16 @@
 import { MyContext } from '../bot';
 import { adminKeyboard } from './auth';
 import {
-  findAdminByTgId, createEmployee, createAdmin,
+  findAdminByTgId, createAdmin,
   getAllActiveEmployees, deactivateEmployee,
   getAttendanceReport, getAllGroupChats, removeGroupChat,
 } from '../db';
-import { generateEmployeeCode, generateAdminCode } from '../utils/codeGen';
+import { bot } from '../bot';
+import { generateAdminCode } from '../utils/codeGen';
 import { todayDate, formatTime } from '../utils/time';
 import { buildExcel, AttendanceRow } from '../utils/excel';
 import { sendFullReportToSheets } from '../utils/sheets';
 import { InlineKeyboard, InputFile } from 'grammy';
-
-// ─── Xodim qo'shish ───────────────────────────────────────────────────────────
-
-export async function handleAddEmployee(ctx: MyContext) {
-  const tgId = ctx.from?.id;
-  if (!tgId) return;
-
-  const admin = await findAdminByTgId(tgId);
-  if (!admin) {
-    await ctx.reply('⛔ Siz admin emassiz.');
-    return;
-  }
-
-  const code = generateEmployeeCode();
-
-  try {
-    // Create an employee with a placeholder name. The employee will set their own name later.
-    const emp = await createEmployee(code, 'Kutmoqda...');
-    
-    await ctx.reply(
-      `✅ <b>Xodim kodi yaratildi!</b>\n\n🔑 Kod: <code>${emp.unique_code}</code>\n\n📩 <i>Bu kodni xodimga yuboring. Xodim botga kirganda ism-familiyasini o'zi kiritadi.</i>`,
-      { parse_mode: 'HTML', reply_markup: adminKeyboard() }
-    );
-  } catch (e: any) {
-    console.error('handleAddEmployee error:', e);
-    await ctx.reply(`❌ Xato: ${e.message}`, { reply_markup: adminKeyboard() });
-  }
-}
 
 // ─── Admin qo'shish ───────────────────────────────────────────────────────────
 
@@ -211,7 +184,7 @@ async function sendReport(ctx: MyContext, startDate: string, endDate: string, ti
       left_early: r.left_early ?? false,
       early_leave_reason: r.early_leave_reason,
       late_reason: r.late_reason,
-      fine_percent: r.fine_percent ?? 0,
+      fine_amount: r.fine_amount ?? 0,
     }));
 
     const buffer = await buildExcel(reportRows, title);
@@ -232,7 +205,7 @@ async function sendReport(ctx: MyContext, startDate: string, endDate: string, ti
       late_minutes: r.late_minutes,
       late_reason: r.late_reason || '',
       early_leave_reason: r.early_leave_reason || '',
-      fine_percent: r.fine_percent,
+      fine_amount: r.fine_amount,
     }));
     sendFullReportToSheets(sheetsRecords).catch(e => console.error('Sheets full report error:', e));
   } catch (e: any) {
@@ -252,4 +225,61 @@ export async function handleGoogleSheetsLink(ctx: MyContext) {
     `📊 <b>Google Sheets orqali jonli davomatni ko'rish:</b>\n\n<a href="${sheetUrl}">Jadvalni ochish</a>`,
     { parse_mode: 'HTML', reply_markup: adminKeyboard(), link_preview_options: { is_disabled: true } }
   );
+}
+
+// ─── Xizmat safari tasdiqlash ──────────────────────────────────────────────────
+
+export async function handleTripCallback(ctx: MyContext) {
+  const data = ctx.callbackQuery?.data;
+  if (!data) return;
+
+  const { getPendingTrip, approveTrip, rejectTrip } = await import('../db');
+  
+  if (data.startsWith('trip_ok_')) {
+    const tripId = data.replace('trip_ok_', '');
+    const trip = await getPendingTrip(tripId);
+    if (!trip) {
+      await ctx.answerCallbackQuery({ text: '⚠️ So\'rov topilmadi yoki allaqachon hal qilingan.', show_alert: true });
+      return;
+    }
+
+    if (trip.status !== 'pending') {
+      await ctx.answerCallbackQuery({ text: 'ℹ️ Bu so\'rov avval hal qilingan.', show_alert: true });
+      await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+      return;
+    }
+
+    await approveTrip(trip.id, trip.employee_id, trip.target_date);
+    await ctx.answerCallbackQuery({ text: '✅ Tasdiqlandi' });
+    await ctx.editMessageText(`${ctx.callbackQuery.message?.text}\n\n<b>✅ TASDIQLANDI</b>`, { parse_mode: 'HTML' });
+    
+    // Xodimga xabar yuborish
+    const { findEmployeeById } = await import('../db');
+    const emp = await findEmployeeById(trip.employee_id);
+    if (emp?.telegram_id) {
+      try {
+        await bot.api.sendMessage(emp.telegram_id, `✅ <b>Xizmat safari tasdiqlandi!</b>\n📅 Sana: ${trip.target_date}\n\n📍 <i>Ertaga xizmat joyiga yetib borganda "Xizmat joyidaman" tugmasi bilan lokatsiya yuboring.</i>`, { parse_mode: 'HTML' });
+      } catch { /* silent */ }
+    }
+  } else if (data.startsWith('trip_no_')) {
+    const tripId = data.replace('trip_no_', '');
+    const trip = await getPendingTrip(tripId);
+    if (!trip || trip.status !== 'pending') {
+      await ctx.answerCallbackQuery({ text: '⚠️ So\'rov topilmadi yoki allaqachon hal qilingan.', show_alert: true });
+      return;
+    }
+
+    await rejectTrip(trip.id);
+    await ctx.answerCallbackQuery({ text: '❌ Rad etildi' });
+    await ctx.editMessageText(`${ctx.callbackQuery.message?.text}\n\n<b>❌ RAD ETILDI</b>`, { parse_mode: 'HTML' });
+    
+    // Xodimga xabar yuborish
+    const { findEmployeeById } = await import('../db');
+    const emp = await findEmployeeById(trip.employee_id);
+    if (emp?.telegram_id) {
+      try {
+        await bot.api.sendMessage(emp.telegram_id, `❌ <b>Xizmat safari rad etildi!</b>\n📅 Sana: ${trip.target_date}`, { parse_mode: 'HTML' });
+      } catch { /* silent */ }
+    }
+  }
 }

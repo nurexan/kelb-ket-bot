@@ -13,12 +13,14 @@ export async function initDatabase(): Promise<void> {
         added_by BIGINT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE public.kk_attendance ADD COLUMN IF NOT EXISTS fine_amount NUMERIC DEFAULT 0;
+      NOTIFY pgrst, 'reload schema';
     `
   });
 
   if (groupErr) {
     // RPC yo'q bo'lishi mumkin — jadval allaqachon bor yoki qo'lda yaratilgan
-    console.log('ℹ️  kk_group_chats jadvalini tekshiring (Supabase SQL Editor orqali yarating)');
+    console.log('ℹ️  SQL ishga tushmadi: (Supabase SQL Editor orqali yarating yoki RPC endpointini tekshiring) ' + groupErr.message);
   } else {
     console.log('✅ Jadvallar tayyor!');
   }

@@ -24,13 +24,26 @@ export interface Attendance {
   employee_id: string;
   date: string;
   arrived_at: string | null;
-  status: 'on_time' | 'late' | 'absent' | 'late_notified';
+  status: 'on_time' | 'late' | 'absent' | 'late_notified' | 'late_notified_advance' | 'trip' | 'trip_approved';
   late_minutes: number;
   left_at: string | null;
   left_early: boolean;
   early_leave_reason: string | null;
   late_reason: string | null;
   fine_percent: number;
+  fine_amount: number;
+  expected_leave_at: string | null;
+  leave_reminder_sent: boolean;
+}
+
+export interface TripRequest {
+  id: string;
+  employee_id: string;
+  request_date: string;
+  target_date: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
 }
 
 export interface GroupChat {
@@ -43,16 +56,7 @@ export interface GroupChat {
 
 // ─── Employee ────────────────────────────────────────────────────────────────
 
-export async function findEmployeeByCode(code: string): Promise<Employee | null> {
-  const { data, error } = await supabase
-    .from('kk_employees')
-    .select('*')
-    .eq('unique_code', code.toUpperCase().trim())
-    .eq('is_active', true)
-    .single();
-  if (error && error.code !== 'PGRST116') console.error('findEmployeeByCode error:', error);
-  return data ?? null;
-}
+
 
 export async function findEmployeeByTgId(tgId: number): Promise<Employee | null> {
   const { data, error } = await supabase
@@ -65,15 +69,11 @@ export async function findEmployeeByTgId(tgId: number): Promise<Employee | null>
   return data ?? null;
 }
 
-export async function bindEmployeeTgId(employeeId: string, tgId: number): Promise<void> {
-  const { error } = await supabase
-    .from('kk_employees')
-    .update({ telegram_id: tgId })
-    .eq('id', employeeId);
-  if (error) throw error;
-}
 
 export async function bindEmployeeTgIdAndName(employeeId: string, tgId: number, fullName: string): Promise<void> {
+  // Eski xodimlarning tgId sini tozalaymiz
+  await supabase.from('kk_employees').update({ telegram_id: null }).eq('telegram_id', tgId);
+
   const { error } = await supabase
     .from('kk_employees')
     .update({ telegram_id: tgId, full_name: fullName.trim() })
@@ -81,20 +81,6 @@ export async function bindEmployeeTgIdAndName(employeeId: string, tgId: number, 
   if (error) throw error;
 }
 
-export async function createEmployee(code: string, fullName: string): Promise<Employee> {
-  const upperCode = code.toUpperCase().trim();
-  const { data, error } = await supabase
-    .from('kk_employees')
-    .insert({ unique_code: upperCode, full_name: fullName.trim(), is_active: true })
-    .select()
-    .single();
-  if (error) {
-    console.error('createEmployee error:', JSON.stringify(error));
-    if (error.code === '23505') throw new Error('Bu kod allaqachon mavjud. Boshqa kod bilan qayta urinib ko\'ring.');
-    throw new Error(error.message || 'Ma\'lumotlar bazasida xatolik');
-  }
-  return data;
-}
 
 export async function getAllActiveEmployees(): Promise<Employee[]> {
   const { data, error } = await supabase
@@ -106,8 +92,13 @@ export async function getAllActiveEmployees(): Promise<Employee[]> {
   return data ?? [];
 }
 
+export async function findEmployeeById(id: string): Promise<Employee | null> {
+  const { data } = await supabase.from('kk_employees').select('*').eq('id', id).single();
+  return data ?? null;
+}
+
 export async function deactivateEmployee(id: string): Promise<void> {
-  await supabase.from('kk_employees').update({ is_active: false }).eq('id', id);
+  await supabase.from('kk_employees').update({ is_active: false, telegram_id: null }).eq('id', id);
 }
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
@@ -212,6 +203,18 @@ export async function upsertAttendance(employeeId: string, date: string, updates
     .upsert({ employee_id: employeeId, date, ...updates }, { onConflict: 'employee_id,date' });
   if (error) {
     console.error('upsertAttendance error:', JSON.stringify(error));
+    if (error.message?.includes('fine_amount') || error.details?.includes('fine_amount') || error.code === 'PGRST204') {
+      console.warn('⚠️ fine_amount ustuni bazada topilmadi. Usiz saqlashga qayta urinilmoqda...');
+      const fallbackUpdates = { ...updates };
+      delete fallbackUpdates.fine_amount;
+      const { error: err2 } = await supabase
+        .from('kk_attendance')
+        .upsert({ employee_id: employeeId, date, ...fallbackUpdates }, { onConflict: 'employee_id,date' });
+      if (err2) {
+        console.error('upsertAttendance fallback error:', JSON.stringify(err2));
+      }
+      return;
+    }
     throw error;
   }
 }
@@ -231,19 +234,112 @@ export async function autoCheckoutAll(date: string, leftAt: string): Promise<Emp
   await supabase
     .from('kk_attendance')
     .update({ left_at: leftAt, left_early: false })
-    .eq('date', date)
-    .not('arrived_at', 'is', null)
-    .is('left_at', null);
+    .in('employee_id', empIds.map(e => e.employee_id));
 
-  // Xodim ma'lumotlarini olish (xabar yuborish uchun)
-  const ids = empIds.map((r: any) => r.employee_id);
+  // O'sha xodimlar ro'yxatini qaytarish (ism-familiyasi kerak)
   const { data: employees } = await supabase
     .from('kk_employees')
     .select('*')
-    .in('id', ids)
-    .not('telegram_id', 'is', null);
+    .in('id', empIds.map(e => e.employee_id));
 
   return employees ?? [];
+}
+
+export async function getPendingLeaveReminders(date: string, currentTime: string): Promise<Attendance[]> {
+  try {
+    const { data, error } = await supabase
+      .from('kk_attendance')
+      .select('*')
+      .eq('date', date)
+      .is('left_at', null)
+      .not('arrived_at', 'is', null)
+      .eq('leave_reminder_sent', false)
+      .lte('expected_leave_at', currentTime);
+    
+    if (error) {
+      if (error.code !== '42703' && !error.message?.includes('leave_reminder_sent')) {
+        console.error('getPendingLeaveReminders error:', error);
+      }
+      return [];
+    }
+    return data ?? [];
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function markLeaveReminderSent(attendanceId: string): Promise<void> {
+  try {
+    const { error } = await supabase.from('kk_attendance').update({ leave_reminder_sent: true }).eq('id', attendanceId);
+    if (error && error.code !== '42703' && !error.message?.includes('leave_reminder_sent')) {
+      console.error('markLeaveReminderSent error:', error);
+    }
+  } catch (e) {}
+}
+
+export async function updateExpectedLeaveTime(attendanceId: string, time: string): Promise<void> {
+  try {
+    const { error } = await supabase.from('kk_attendance').update({ expected_leave_at: time, leave_reminder_sent: false }).eq('id', attendanceId);
+    if (error && (error.code === '42703' || error.message?.includes('leave_reminder_sent'))) {
+      await supabase.from('kk_attendance').update({ expected_leave_at: time }).eq('id', attendanceId);
+    }
+  } catch (e) {}
+}
+
+export async function getLateCountForMonth(employeeId: string, year: number, month: number, includeAdvanceNotified: boolean): Promise<number> {
+  const lastDay = new Date(year, month, 0).getDate();
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  let query = supabase
+    .from('kk_attendance')
+    .select('*', { count: 'exact', head: true })
+    .eq('employee_id', employeeId)
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  if (includeAdvanceNotified) {
+    query = query.eq('status', 'late_notified_advance');
+  } else {
+    // Normal lates (notified same day or unnotified)
+    query = query.in('status', ['late', 'late_notified']);
+  }
+
+  const { count } = await query;
+  return count ?? 0;
+}
+
+// ─── Trips (Bozorga borish) ──────────────────────────────────────────────────
+
+export async function requestTrip(employeeId: string, targetDate: string, reason: string): Promise<TripRequest> {
+  const { data, error } = await supabase
+    .from('kk_trip_requests')
+    .insert({
+      employee_id: employeeId,
+      request_date: new Date().toISOString().split('T')[0],
+      target_date: targetDate,
+      reason,
+      status: 'pending'
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getPendingTrip(tripId: string): Promise<TripRequest | null> {
+  const { data } = await supabase.from('kk_trip_requests').select('*').eq('id', tripId).single();
+  return data ?? null;
+}
+
+export async function approveTrip(tripId: string, employeeId: string, targetDate: string): Promise<void> {
+  await supabase.from('kk_trip_requests').update({ status: 'approved' }).eq('id', tripId);
+  // Bo'lajak kunga 'trip_approved' statusi bilan qator qo'shamiz
+  await upsertAttendance(employeeId, targetDate, { status: 'trip_approved' });
+}
+
+export async function rejectTrip(tripId: string): Promise<void> {
+  await supabase.from('kk_trip_requests').update({ status: 'rejected' }).eq('id', tripId);
 }
 
 export async function getAttendanceReport(startDate: string, endDate: string): Promise<any[]> {
@@ -308,4 +404,47 @@ export async function getAttendanceReport(startDate: string, endDate: string): P
   }
 
   return result;
+}
+
+export async function createEmployeeFromRequest(tgId: number): Promise<Employee> {
+  // Clear any existing employee with this tgId to avoid unique key violation
+  await supabase.from('kk_employees').update({ telegram_id: null }).eq('telegram_id', tgId);
+
+  // Generate unique code: EMP- + random 6 digits
+  const code = 'EMP-' + Math.floor(100000 + Math.random() * 900000);
+  
+  // Check if an inactive or existing employee with this tgId already exists
+  const { data: existing } = await supabase
+    .from('kk_employees')
+    .select('*')
+    .eq('telegram_id', tgId)
+    .maybeSingle();
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('kk_employees')
+      .update({
+        is_active: true,
+        full_name: 'Ism kiritilmoqda',
+        unique_code: code
+      })
+      .eq('id', existing.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  const { data, error } = await supabase
+    .from('kk_employees')
+    .insert({
+      unique_code: code,
+      full_name: 'Ism kiritilmoqda',
+      telegram_id: tgId,
+      is_active: true
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
