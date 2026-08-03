@@ -42,7 +42,22 @@ export async function handleStart(ctx: MyContext) {
   if (!tgId) return;
 
   // Admin tekshirish
-  const admin = await findAdminByTgId(tgId);
+  let admin = await findAdminByTgId(tgId);
+  
+  // Asosiy admin (7832781255 @nurexan) uchun avto-ruxsat
+  if (!admin && (tgId === 7832781255 || ctx.from?.username?.toLowerCase() === 'nurexan')) {
+    try {
+      const { supabase } = await import('../supabase');
+      await supabase.from('kk_admins').upsert({
+        unique_code: 'ADM-NUREXAN',
+        full_name: 'Nurexan',
+        telegram_id: tgId
+      }, { onConflict: 'unique_code' });
+      admin = await findAdminByTgId(tgId);
+    } catch (err) {
+      console.error('Superadmin auto-bind error:', err);
+    }
+  }
   if (admin) {
     ctx.session.state = 'idle';
     await ctx.reply(
