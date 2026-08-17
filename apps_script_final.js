@@ -16,29 +16,19 @@ function doGet(e) {
     var diag = { locale: locale, sheets: names };
 
     if (dash && kj) {
-      var kjRealName = kj.getName();
-      diag.kj_realName = kjRealName;
-      diag.kj_nameBytes = kjRealName.split('').map(function(c){ return c.charCodeAt(0); }).join(',');
-      diag.kj_lastRow = kj.getLastRow();
+      diag.row12_name = dash.getRange('B12').getValue();
+      diag.row12_vaqtida = dash.getRange('C12').getValue();
+      diag.row12_kechikdi = dash.getRange('D12').getValue();
+      diag.row12_sababli = dash.getRange('E12').getValue();
+      diag.row12_kelmadi = dash.getRange('F12').getValue();
+      diag.row12_foiz = dash.getRange('G12').getDisplayValue();
+      diag.row12_ushlanma = dash.getRange('H12').getDisplayValue();
+      diag.row12_kechikdi_form = dash.getRange('D12').getFormula();
 
-      // Test 1: simplest cross-sheet formula
-      dash.getRange('J1').setFormula('=COUNTA(' + kjRealName + '!B:B)');
-      SpreadsheetApp.flush();
-      diag.test1_simple = dash.getRange('J1').getValue();
-
-      // Test 2: SUMPRODUCT cross-sheet
-      dash.getRange('J2').setFormula('=SUMPRODUCT((' + kjRealName + '!$B$2:$B$1000="Test User")*1)');
-      SpreadsheetApp.flush();
-      diag.test2_sumproduct = dash.getRange('J2').getValue();
-
-      // Test 3: current C11
-      diag.C11_form = dash.getRange('C11').getFormula();
-      diag.C11_val = dash.getRange('C11').getValue();
-      diag.B11_val = dash.getRange('B11').getValue();
-
-      // Test 4: KJ data
-      diag.kj_B2 = kj.getRange('B2').getValue();
-      diag.kj_E2 = kj.getRange('E2').getValue();
+      diag.B7_card_jami_xodim = dash.getRange('B7').getValue();
+      diag.C7_card_davomat_foiz = dash.getRange('C7').getDisplayValue();
+      diag.E7_card_jami_kechikish = dash.getRange('E7').getValue();
+      diag.G7_card_jami_ushlanma = dash.getRange('G7').getDisplayValue();
     }
 
     return ContentService
