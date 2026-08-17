@@ -13,50 +13,37 @@ function doGet(e) {
     var dash = getSheetFlexible(ss, 'Dashboard');
     var testResults = {};
     if (dash) {
-      // Clear previous test cells
       dash.getRange('I1:J10').clearContent();
       
-      // Test 1: Semicolon separator with English COUNTIF
+      // Test 7: Semicolon separator, single quotes, without IFERROR
       try {
-        dash.getRange('I1').setFormula('=COUNTIF(Kunlik_jurnal!B:B; "test")');
-        testResults.t1 = { val: dash.getRange('I1').getValue(), form: dash.getRange('I1').getFormula(), ok: true };
-      } catch (err1) { testResults.t1 = { err: err1.toString(), ok: false }; }
+        dash.getRange('I1').setFormula('=IF($B11=""; ""; COUNTIFS(\'Kunlik_jurnal\'!$B:$B; $B11; \'Kunlik_jurnal\'!$E:$E; "Vaqtida*"))');
+        testResults.t7 = { val: dash.getRange('I1').getValue(), form: dash.getRange('I1').getFormula(), ok: true };
+      } catch (err7) { testResults.t7 = { err: err7.toString(), ok: false }; }
       
-      // Test 2: Comma separator with English COUNTIF
+      // Test 8: Semicolon separator, no single quotes, without IFERROR
       try {
-        dash.getRange('I2').setFormula('=COUNTIF(Kunlik_jurnal!B:B, "test")');
-        testResults.t2 = { val: dash.getRange('I2').getValue(), form: dash.getRange('I2').getFormula(), ok: true };
-      } catch (err2) { testResults.t2 = { err: err2.toString(), ok: false }; }
+        dash.getRange('I2').setFormula('=IF($B11=""; ""; COUNTIFS(Kunlik_jurnal!$B:$B; $B11; Kunlik_jurnal!$E:$E; "Vaqtida*"))');
+        testResults.t8 = { val: dash.getRange('I2').getValue(), form: dash.getRange('I2').getFormula(), ok: true };
+      } catch (err8) { testResults.t8 = { err: err8.toString(), ok: false }; }
       
-      // Test 3: Semicolon with single quoted sheet name
+      // Test 9: Full new formula with IFERROR and semicolons
       try {
-        dash.getRange('I3').setFormula('=COUNTIF(\'Kunlik_jurnal\'!B:B; "test")');
-        testResults.t3 = { val: dash.getRange('I3').getValue(), form: dash.getRange('I3').getFormula(), ok: true };
-      } catch (err3) { testResults.t3 = { err: err3.toString(), ok: false }; }
+        dash.getRange('I3').setFormula('=IFERROR(IF($B11="";"";COUNTIFS(\'Kunlik_jurnal\'!$B:$B;$B11;\'Kunlik_jurnal\'!$E:$E;"Vaqtida*"));"")');
+        testResults.t9 = { val: dash.getRange('I3').getValue(), form: dash.getRange('I3').getFormula(), ok: true };
+      } catch (err9) { testResults.t9 = { err: err9.toString(), ok: false }; }
 
-      // Test 4: Local formula set (if they use Russian/Uzbek locale)
+      // Test 10: Simple COUNTIFS with semicolons, no quotes
       try {
-        dash.getRange('I4').setFormulaLocal('=СЧЁТЕСЛИ(Kunlik_jurnal!B:B; "test")');
-        testResults.t4 = { val: dash.getRange('I4').getValue(), form: dash.getRange('I4').getFormula(), ok: true };
-      } catch (err4) { testResults.t4 = { err: err4.toString(), ok: false }; }
-
-      // Test 5: IF formula with semicolon
-      try {
-        dash.getRange('I5').setFormula('=IF(B11=""; "empty"; "not empty")');
-        testResults.t5 = { val: dash.getRange('I5').getValue(), form: dash.getRange('I5').getFormula(), ok: true };
-      } catch (err5) { testResults.t5 = { err: err5.toString(), ok: false }; }
-
-      // Test 6: IFERROR with semicolon
-      try {
-        dash.getRange('I6').setFormula('=IFERROR(1/0; "error")');
-        testResults.t6 = { val: dash.getRange('I6').getValue(), form: dash.getRange('I6').getFormula(), ok: true };
-      } catch (err6) { testResults.t6 = { err: err6.toString(), ok: false }; }
+        dash.getRange('I4').setFormula('=COUNTIFS(Kunlik_jurnal!$B:$B; $B11; Kunlik_jurnal!$E:$E; "Vaqtida*")');
+        testResults.t10 = { val: dash.getRange('I4').getValue(), form: dash.getRange('I4').getFormula(), ok: true };
+      } catch (err10) { testResults.t10 = { err: err10.toString(), ok: false }; }
     }
     
     return ContentService
       .createTextOutput(JSON.stringify({ 
         status: 'OK', 
-        message: 'Formula Diagnostics', 
+        message: 'Formula Diagnostics 2', 
         sheets: names,
         testResults: testResults
       }))
