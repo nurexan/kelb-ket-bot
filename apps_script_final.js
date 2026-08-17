@@ -11,41 +11,25 @@ function doGet(e) {
     var names = sheets.map(function(s) { return s.getName(); });
     
     var dash = getSheetFlexible(ss, 'Dashboard');
-    var testResults = {};
+    var dashDiagnostics = {};
     if (dash) {
-      dash.getRange('I1:J10').clearContent();
-      
-      // Test 7: Semicolon separator, single quotes, without IFERROR
-      try {
-        dash.getRange('I1').setFormula('=IF($B11=""; ""; COUNTIFS(\'Kunlik_jurnal\'!$B:$B; $B11; \'Kunlik_jurnal\'!$E:$E; "Vaqtida*"))');
-        testResults.t7 = { val: dash.getRange('I1').getValue(), form: dash.getRange('I1').getFormula(), ok: true };
-      } catch (err7) { testResults.t7 = { err: err7.toString(), ok: false }; }
-      
-      // Test 8: Semicolon separator, no single quotes, without IFERROR
-      try {
-        dash.getRange('I2').setFormula('=IF($B11=""; ""; COUNTIFS(Kunlik_jurnal!$B:$B; $B11; Kunlik_jurnal!$E:$E; "Vaqtida*"))');
-        testResults.t8 = { val: dash.getRange('I2').getValue(), form: dash.getRange('I2').getFormula(), ok: true };
-      } catch (err8) { testResults.t8 = { err: err8.toString(), ok: false }; }
-      
-      // Test 9: Full new formula with IFERROR and semicolons
-      try {
-        dash.getRange('I3').setFormula('=IFERROR(IF($B11="";"";COUNTIFS(\'Kunlik_jurnal\'!$B:$B;$B11;\'Kunlik_jurnal\'!$E:$E;"Vaqtida*"));"")');
-        testResults.t9 = { val: dash.getRange('I3').getValue(), form: dash.getRange('I3').getFormula(), ok: true };
-      } catch (err9) { testResults.t9 = { err: err9.toString(), ok: false }; }
-
-      // Test 10: Simple COUNTIFS with semicolons, no quotes
-      try {
-        dash.getRange('I4').setFormula('=COUNTIFS(Kunlik_jurnal!$B:$B; $B11; Kunlik_jurnal!$E:$E; "Vaqtida*")');
-        testResults.t10 = { val: dash.getRange('I4').getValue(), form: dash.getRange('I4').getFormula(), ok: true };
-      } catch (err10) { testResults.t10 = { err: err10.toString(), ok: false }; }
+      dashDiagnostics = {
+        row11_B: dash.getRange('B11').getValue(),
+        row11_C_val: dash.getRange('C11').getValue(),
+        row15_B: dash.getRange('B15').getValue(),
+        row15_C_val: dash.getRange('C15').getValue(),
+        C7_val: dash.getRange('C7').getValue(),
+        E7_val: dash.getRange('E7').getValue(),
+        G7_val: dash.getRange('G7').getValue()
+      };
     }
     
     return ContentService
       .createTextOutput(JSON.stringify({ 
         status: 'OK', 
-        message: 'Formula Diagnostics 2', 
+        message: 'Kelb-Ket Bot Sheets API ishlayapti!', 
         sheets: names,
-        testResults: testResults
+        dashDiagnostics: dashDiagnostics
       }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
