@@ -239,14 +239,14 @@ function addEmployeeToDashboard(dashSheet, employeeName, kjName) {
   }
   if (!exists && emptyRow > 0) {
     var r = emptyRow;
-    dashSheet.getRange(r, 1).setFormula('=IF($B' + r + '="", "", ROW()-10)');
+    dashSheet.getRange(r, 1).setFormula('=IF($B' + r + '="","",ROW()-10)');
     dashSheet.getRange(r, 2).setValue(employeeName);
-    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Vaqtida*")), "")');
-    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Kechikdi")), "")');
-    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Sababli*")), "")');
-    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Kelmadi")), "")');
-    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B' + r + '="", SUM(C' + r + ':F' + r + ')=0), "", C' + r + '/SUM(C' + r + ':F' + r + ')), "")');
-    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B' + r + '="", "", SUMIFS(Kunlik_jurnal!$G:$G, Kunlik_jurnal!$B:$B, $B' + r + ')), "")');
+    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(Kunlik_jurnal!$B:$B,$B' + r + ',Kunlik_jurnal!$E:$E,"Vaqtida*")),"")');
+    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(Kunlik_jurnal!$B:$B,$B' + r + ',Kunlik_jurnal!$E:$E,"Kechikdi")),"")');
+    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(Kunlik_jurnal!$B:$B,$B' + r + ',Kunlik_jurnal!$E:$E,"Sababli*")),"")');
+    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(Kunlik_jurnal!$B:$B,$B' + r + ',Kunlik_jurnal!$E:$E,"Kelmadi")),"")');
+    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B' + r + '="",SUM(C' + r + ':F' + r + ')=0),"",C' + r + '/SUM(C' + r + ':F' + r + ')),"")');
+    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B' + r + '="","",SUMIFS(Kunlik_jurnal!$G:$G,Kunlik_jurnal!$B:$B,$B' + r + ')),"")');
     dashSheet.getRange(r, 7).setNumberFormat('0%');
     dashSheet.getRange(r, 8).setNumberFormat('#,##0" so\'m"');
   }
@@ -260,13 +260,13 @@ function fixDashboardFormulas() {
   var kjName = kjSheet.getName();
 
   for (var r = 11; r <= 200; r++) {
-    dashSheet.getRange(r, 1).setFormula('=IF($B' + r + '="", "", ROW()-10)');
-    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Vaqtida*")), "")');
-    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Kechikdi")), "")');
-    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Sababli*")), "")');
-    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Kelmadi")), "")');
-    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B' + r + '="", SUM(C' + r + ':F' + r + ')=0), "", C' + r + '/SUM(C' + r + ':F' + r + ')), "")');
-    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B' + r + '="", "", SUMIFS(' + kjName + '!$G:$G, ' + kjName + '!$B:$B, $B' + r + ')), "")');
+    dashSheet.getRange(r, 1).setFormula('=IF($B' + r + '="","",ROW()-10)');
+    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(' + kjName + '!$B:$B,$B' + r + ',' + kjName + '!$E:$E,"Vaqtida*")),"")');
+    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(' + kjName + '!$B:$B,$B' + r + ',' + kjName + '!$E:$E,"Kechikdi")),"")');
+    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(' + kjName + '!$B:$B,$B' + r + ',' + kjName + '!$E:$E,"Sababli*")),"")');
+    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B' + r + '="","",COUNTIFS(' + kjName + '!$B:$B,$B' + r + ',' + kjName + '!$E:$E,"Kelmadi")),"")');
+    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B' + r + '="",SUM(C' + r + ':F' + r + ')=0),"",C' + r + '/SUM(C' + r + ':F' + r + ')),"")');
+    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B' + r + '="","",SUMIFS(' + kjName + '!$G:$G,' + kjName + '!$B:$B,$B' + r + ')),"")');
   }
 
   dashSheet.getRange('G11:G200').setNumberFormat('0%');
