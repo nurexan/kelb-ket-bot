@@ -9,25 +9,30 @@ function doGet(e) {
     var ss = getSS();
     var sheets = ss.getSheets();
     var names = sheets.map(function(s) { return s.getName(); });
-    
+
     var dash = getSheetFlexible(ss, 'Dashboard');
     var dashDiagnostics = {};
     if (dash) {
       dashDiagnostics = {
         row11_B: dash.getRange('B11').getValue(),
         row11_C_val: dash.getRange('C11').getValue(),
+        row11_C_form: dash.getRange('C11').getFormula(),
         row15_B: dash.getRange('B15').getValue(),
         row15_C_val: dash.getRange('C15').getValue(),
+        row15_C_form: dash.getRange('C15').getFormula(),
         C7_val: dash.getRange('C7').getValue(),
+        C7_form: dash.getRange('C7').getFormula(),
         E7_val: dash.getRange('E7').getValue(),
-        G7_val: dash.getRange('G7').getValue()
+        E7_form: dash.getRange('E7').getFormula(),
+        G7_val: dash.getRange('G7').getValue(),
+        G7_form: dash.getRange('G7').getFormula()
       };
     }
-    
+
     return ContentService
-      .createTextOutput(JSON.stringify({ 
-        status: 'OK', 
-        message: 'Kelb-Ket Bot Sheets API ishlayapti!', 
+      .createTextOutput(JSON.stringify({
+        status: 'OK',
+        message: 'Kelb-Ket Bot Sheets API ishlayapti!',
         sheets: names,
         dashDiagnostics: dashDiagnostics
       }))
@@ -57,6 +62,7 @@ function normalizeDate(val) {
   }
   var str = String(val).trim();
   if (str === '') return '';
+  if (str.indexOf('T') !== -1) str = str.split('T')[0];
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
   if (str.indexOf('.') !== -1) {
     var parts = str.split('.');
@@ -133,13 +139,13 @@ function getColumnMapping(sheet) {
 
 function getStatusInfo(status) {
   var statusMap = {
-    'on_time': { text: 'Vaqtida keldi', bg: '#C8E6C9' },
-    'late': { text: 'Kechikdi', bg: '#FFCDD2' },
-    'late_notified': { text: 'Sababli (kech)', bg: '#FFE0B2' },
-    'late_notified_advance': { text: 'Sababli', bg: '#FFE0B2' },
-    'absent': { text: 'Kelmadi', bg: '#EF9A9A' },
-    'trip': { text: 'Xizmat safari', bg: '#E1BEE7' },
-    'trip_approved': { text: 'Xizmat safari', bg: '#E1BEE7' }
+    'on_time':              { text: 'Vaqtida keldi',   bg: '#C8E6C9' },
+    'late':                 { text: 'Kechikdi',         bg: '#FFCDD2' },
+    'late_notified':        { text: 'Sababli (kech)',   bg: '#FFE0B2' },
+    'late_notified_advance':{ text: 'Sababli',          bg: '#FFE0B2' },
+    'absent':               { text: 'Kelmadi',          bg: '#EF9A9A' },
+    'trip':                 { text: 'Xizmat safari',    bg: '#E1BEE7' },
+    'trip_approved':        { text: 'Xizmat safari',    bg: '#E1BEE7' }
   };
   return statusMap[status] || { text: status || "Noma'lum", bg: '#F5F5F5' };
 }
@@ -233,15 +239,14 @@ function addEmployeeToDashboard(dashSheet, employeeName, kjName) {
   }
   if (!exists && emptyRow > 0) {
     var r = emptyRow;
-    var safeKjName = "'" + kjName.replace(/'/g, "''") + "'";
-    dashSheet.getRange(r, 1).setFormula('=IF($B'+r+'="";"";ROW()-10)');
+    dashSheet.getRange(r, 1).setFormula('=IF($B' + r + '="", "", ROW()-10)');
     dashSheet.getRange(r, 2).setValue(employeeName);
-    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Vaqtida*"));"")');
-    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Kechikdi"));"")');
-    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Sababli*"));"")');
-    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Kelmadi"));"")');
-    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B'+r+'="";SUM(C'+r+':F'+r+')=0);"";C'+r+'/SUM(C'+r+':F'+r+'));"")');
-    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B'+r+'="";"";SUMIFS('+safeKjName+'!$G:$G;'+safeKjName+'!$B:$B;$B'+r+'));"")');
+    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Vaqtida*")), "")');
+    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Kechikdi")), "")');
+    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Sababli*")), "")');
+    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(Kunlik_jurnal!$B:$B, $B' + r + ', Kunlik_jurnal!$E:$E, "Kelmadi")), "")');
+    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B' + r + '="", SUM(C' + r + ':F' + r + ')=0), "", C' + r + '/SUM(C' + r + ':F' + r + ')), "")');
+    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B' + r + '="", "", SUMIFS(Kunlik_jurnal!$G:$G, Kunlik_jurnal!$B:$B, $B' + r + ')), "")');
     dashSheet.getRange(r, 7).setNumberFormat('0%');
     dashSheet.getRange(r, 8).setNumberFormat('#,##0" so\'m"');
   }
@@ -253,33 +258,32 @@ function fixDashboardFormulas() {
   var kjSheet = getSheetFlexible(ss, 'Kunlik_jurnal');
   if (!dashSheet || !kjSheet) return 'Dashboard yoki Kunlik_jurnal topilmadi';
   var kjName = kjSheet.getName();
-  var safeKjName = "'" + kjName.replace(/'/g, "''") + "'";
 
   for (var r = 11; r <= 200; r++) {
-    dashSheet.getRange(r, 1).setFormula('=IF($B'+r+'="";"";ROW()-10)');
-    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Vaqtida*"));"")');
-    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Kechikdi"));"")');
-    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Sababli*"));"")');
-    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$E:$E;"Kelmadi"));"")');
-    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B'+r+'="";SUM(C'+r+':F'+r+')=0);"";C'+r+'/SUM(C'+r+':F'+r+'));"")');
-    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B'+r+'="";"";SUMIFS('+safeKjName+'!$G:$G;'+safeKjName+'!$B:$B;$B'+r+'));"")');
+    dashSheet.getRange(r, 1).setFormula('=IF($B' + r + '="", "", ROW()-10)');
+    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Vaqtida*")), "")');
+    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Kechikdi")), "")');
+    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Sababli*")), "")');
+    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B' + r + '="", "", COUNTIFS(' + kjName + '!$B:$B, $B' + r + ', ' + kjName + '!$E:$E, "Kelmadi")), "")');
+    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B' + r + '="", SUM(C' + r + ':F' + r + ')=0), "", C' + r + '/SUM(C' + r + ':F' + r + ')), "")');
+    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B' + r + '="", "", SUMIFS(' + kjName + '!$G:$G, ' + kjName + '!$B:$B, $B' + r + ')), "")');
   }
 
   dashSheet.getRange('G11:G200').setNumberFormat('0%');
   dashSheet.getRange('H11:H200').setNumberFormat('#,##0" so\'m"');
 
   try {
-    dashSheet.getRange('B7').setFormula('=IFERROR(COUNTA(B11:B200); 0)');
-    dashSheet.getRange('C7').setFormula('=IFERROR(SUM(C11:C200)/SUM(C11:F200); 0)'); // wait, SUM(C11:F200) not SUM(C11:F11)
+    dashSheet.getRange('B7').setFormula('=IFERROR(COUNTA(B11:B200), 0)');
+    dashSheet.getRange('C7').setFormula('=IFERROR(SUM(C11:C200)/SUM(C11:F200), 0)');
     dashSheet.getRange('C7').setNumberFormat('0%');
-    dashSheet.getRange('E7').setFormula('=IFERROR(SUM(D11:D200); 0)');
+    dashSheet.getRange('E7').setFormula('=IFERROR(SUM(D11:D200), 0)');
     dashSheet.getRange('E7').setNumberFormat('#,##0');
-    dashSheet.getRange('G7').setFormula('=IFERROR(SUM(H11:H200); 0)');
+    dashSheet.getRange('G7').setFormula('=IFERROR(SUM(H11:H200), 0)');
     dashSheet.getRange('G7').setNumberFormat('#,##0" so\'m"');
   } catch (e7) {}
 
   if (kjSheet.getLastRow() > 0) kjSheet.getRange('G2:G2000').setNumberFormat('#,##0" so\'m"');
-  return 'Dashboard formulalari to\'g\'rilandi';
+  return "Dashboard formulalari to'g'rilandi";
 }
 
 function doPost(e) {
