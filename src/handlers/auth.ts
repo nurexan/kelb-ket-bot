@@ -87,7 +87,7 @@ export async function handleStart(ctx: MyContext) {
     .text('🔑 Admin kodini kiritish', 'enter_code');
 
   await ctx.reply(
-    `👋 <b>V.1.4 Xush kelibsiz!</b>\n\nSiz xodimlar ro'yxatida yo'qsiz. Xodim sifatida qo'shilish uchun adminga so'rov yuboring:`,
+    `👋 <b>Ajdarho versiyasi 🐉 Xush kelibsiz!</b>\n\nSiz xodimlar ro'yxatida yo'qsiz. Xodim sifatida qo'shilish uchun adminga so'rov yuboring:`,
     { parse_mode: 'HTML', reply_markup: kb }
   );
 }

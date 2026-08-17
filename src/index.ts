@@ -25,7 +25,7 @@ import {
   saveGroupChat, removeGroupChat, getAllGroupChatIds,
 } from './db';
 import { todayDate, formatTime } from './utils/time';
-import { syncAttendanceToSheets } from './utils/sheets';
+import { syncAttendanceToSheets, testSheetsConnection } from './utils/sheets';
 import { TIMEZONE } from './config';
 
 // ─── /start ──────────────────────────────────────────────────────────────────
@@ -396,6 +396,27 @@ async function main() {
   bot.start({
     onStart: async (info) => {
       console.log(`✅ Bot ishga tushdi: @${info.username}`);
+      
+      // Google Sheets ulanishini tekshirish
+      try {
+        const sheetsTest = await testSheetsConnection();
+        if (sheetsTest.ok) {
+          console.log('✅ Google Sheets ulanish: ISHLAYAPTI —', sheetsTest.message);
+        } else {
+          console.error('❌ Google Sheets ulanish: ISHLAMAYAPTI —', sheetsTest.message);
+          console.error('   ➡️  apps_script_final.js ni yangi Google Apps Script loyihasiga ko\'chiring va qayta deploy qiling!');
+          // Super adminni xabardor qilish
+          try {
+            await bot.api.sendMessage(
+              7832781255,
+              `⚠️ <b>Google Sheets ulanmadi!</b>\n\n❌ ${sheetsTest.message}\n\n📋 <i>Yechim: apps_script_final.js ni Google Apps Script-ga deploy qiling.</i>`,
+              { parse_mode: 'HTML' }
+            );
+          } catch { /* silent */ }
+        }
+      } catch (err) {
+        console.error('Sheets test xato:', err);
+      }
     },
     allowed_updates: ['message', 'callback_query', 'my_chat_member'],
   });
