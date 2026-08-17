@@ -11,30 +11,54 @@ function doGet(e) {
     var names = sheets.map(function(s) { return s.getName(); });
     
     var dash = getSheetFlexible(ss, 'Dashboard');
-    var dashDiagnostics = {};
+    var testResults = {};
     if (dash) {
-      dashDiagnostics = {
-        row11_B: dash.getRange('B11').getValue(),
-        row11_C_val: dash.getRange('C11').getValue(),
-        row11_C_form: dash.getRange('C11').getFormula(),
-        row15_B: dash.getRange('B15').getValue(),
-        row15_C_val: dash.getRange('C15').getValue(),
-        row15_C_form: dash.getRange('C15').getFormula(),
-        C7_val: dash.getRange('C7').getValue(),
-        C7_form: dash.getRange('C7').getFormula(),
-        E7_val: dash.getRange('E7').getValue(),
-        E7_form: dash.getRange('E7').getFormula(),
-        G7_val: dash.getRange('G7').getValue(),
-        G7_form: dash.getRange('G7').getFormula()
-      };
+      // Clear previous test cells
+      dash.getRange('I1:J10').clearContent();
+      
+      // Test 1: Semicolon separator with English COUNTIF
+      try {
+        dash.getRange('I1').setFormula('=COUNTIF(Kunlik_jurnal!B:B; "test")');
+        testResults.t1 = { val: dash.getRange('I1').getValue(), form: dash.getRange('I1').getFormula(), ok: true };
+      } catch (err1) { testResults.t1 = { err: err1.toString(), ok: false }; }
+      
+      // Test 2: Comma separator with English COUNTIF
+      try {
+        dash.getRange('I2').setFormula('=COUNTIF(Kunlik_jurnal!B:B, "test")');
+        testResults.t2 = { val: dash.getRange('I2').getValue(), form: dash.getRange('I2').getFormula(), ok: true };
+      } catch (err2) { testResults.t2 = { err: err2.toString(), ok: false }; }
+      
+      // Test 3: Semicolon with single quoted sheet name
+      try {
+        dash.getRange('I3').setFormula('=COUNTIF(\'Kunlik_jurnal\'!B:B; "test")');
+        testResults.t3 = { val: dash.getRange('I3').getValue(), form: dash.getRange('I3').getFormula(), ok: true };
+      } catch (err3) { testResults.t3 = { err: err3.toString(), ok: false }; }
+
+      // Test 4: Local formula set (if they use Russian/Uzbek locale)
+      try {
+        dash.getRange('I4').setFormulaLocal('=СЧЁТЕСЛИ(Kunlik_jurnal!B:B; "test")');
+        testResults.t4 = { val: dash.getRange('I4').getValue(), form: dash.getRange('I4').getFormula(), ok: true };
+      } catch (err4) { testResults.t4 = { err: err4.toString(), ok: false }; }
+
+      // Test 5: IF formula with semicolon
+      try {
+        dash.getRange('I5').setFormula('=IF(B11=""; "empty"; "not empty")');
+        testResults.t5 = { val: dash.getRange('I5').getValue(), form: dash.getRange('I5').getFormula(), ok: true };
+      } catch (err5) { testResults.t5 = { err: err5.toString(), ok: false }; }
+
+      // Test 6: IFERROR with semicolon
+      try {
+        dash.getRange('I6').setFormula('=IFERROR(1/0; "error")');
+        testResults.t6 = { val: dash.getRange('I6').getValue(), form: dash.getRange('I6').getFormula(), ok: true };
+      } catch (err6) { testResults.t6 = { err: err6.toString(), ok: false }; }
     }
     
     return ContentService
       .createTextOutput(JSON.stringify({ 
         status: 'OK', 
-        message: 'Diagnostics', 
+        message: 'Formula Diagnostics', 
         sheets: names,
-        dashDiagnostics: dashDiagnostics
+        testResults: testResults
       }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
