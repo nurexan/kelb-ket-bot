@@ -10,24 +10,31 @@ function doGet(e) {
     var sheets = ss.getSheets();
     var names = sheets.map(function(s) { return s.getName(); });
     
-    var kj = getSheetFlexible(ss, 'Kunlik_jurnal');
-    var kjData = [];
-    if (kj) {
-      var lastRow = kj.getLastRow();
-      var startRow = Math.max(1, lastRow - 20);
-      var numRows = lastRow - startRow + 1;
-      if (numRows > 0) {
-        kjData = kj.getRange(startRow, 1, numRows, kj.getLastColumn() || 7).getValues();
-      }
+    var dash = getSheetFlexible(ss, 'Dashboard');
+    var dashDiagnostics = {};
+    if (dash) {
+      dashDiagnostics = {
+        row11_B: dash.getRange('B11').getValue(),
+        row11_C_val: dash.getRange('C11').getValue(),
+        row11_C_form: dash.getRange('C11').getFormula(),
+        row15_B: dash.getRange('B15').getValue(),
+        row15_C_val: dash.getRange('C15').getValue(),
+        row15_C_form: dash.getRange('C15').getFormula(),
+        C7_val: dash.getRange('C7').getValue(),
+        C7_form: dash.getRange('C7').getFormula(),
+        E7_val: dash.getRange('E7').getValue(),
+        E7_form: dash.getRange('E7').getFormula(),
+        G7_val: dash.getRange('G7').getValue(),
+        G7_form: dash.getRange('G7').getFormula()
+      };
     }
     
     return ContentService
       .createTextOutput(JSON.stringify({ 
         status: 'OK', 
-        message: 'Kelb-Ket Bot Sheets API ishlayapti!', 
+        message: 'Diagnostics', 
         sheets: names,
-        lastKjRow: kj ? kj.getLastRow() : 0,
-        kjData: kjData
+        dashDiagnostics: dashDiagnostics
       }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
