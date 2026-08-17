@@ -9,32 +9,45 @@ function doGet(e) {
     var ss = getSS();
     var sheets = ss.getSheets();
     var names = sheets.map(function(s) { return s.getName(); });
+    var locale = ss.getSpreadsheetLocale();
 
     var dash = getSheetFlexible(ss, 'Dashboard');
-    var dashDiagnostics = {};
-    if (dash) {
-      dashDiagnostics = {
-        row11_B: dash.getRange('B11').getValue(),
-        row11_C_val: dash.getRange('C11').getValue(),
-        row11_C_form: dash.getRange('C11').getFormula(),
-        row15_B: dash.getRange('B15').getValue(),
-        row15_C_val: dash.getRange('C15').getValue(),
-        row15_C_form: dash.getRange('C15').getFormula(),
-        C7_val: dash.getRange('C7').getValue(),
-        C7_form: dash.getRange('C7').getFormula(),
-        E7_val: dash.getRange('E7').getValue(),
-        E7_form: dash.getRange('E7').getFormula(),
-        G7_val: dash.getRange('G7').getValue(),
-        G7_form: dash.getRange('G7').getFormula()
-      };
+    var kj = getSheetFlexible(ss, 'Kunlik_jurnal');
+    var diag = {};
+
+    if (dash && kj) {
+      var kjRealName = kj.getName();
+      // Test 1: simplest cross-sheet formula
+      dash.getRange('J1').setFormula('=COUNTA(' + kjRealName + '!B:B)');
+      SpreadsheetApp.flush();
+      diag.test1_formula = dash.getRange('J1').getFormula();
+      diag.test1_value = dash.getRange('J1').getValue();
+
+      // Test 2: COUNTIFS cross-sheet
+      dash.getRange('J2').setFormula('=COUNTIFS(' + kjRealName + '!$B:$B,"Test User")');
+      SpreadsheetApp.flush();
+      diag.test2_formula = dash.getRange('J2').getFormula();
+      diag.test2_value = dash.getRange('J2').getValue();
+
+      // Test 3: current C11 formula and value
+      diag.C11_form = dash.getRange('C11').getFormula();
+      diag.C11_val = dash.getRange('C11').getValue();
+      diag.B11_val = dash.getRange('B11').getValue();
+
+      // Test 4: KJ sheet info
+      diag.kj_lastRow = kj.getLastRow();
+      diag.kj_B2 = kj.getRange('B2').getValue();
+      diag.kj_E2 = kj.getRange('E2').getValue();
+      diag.kj_realName = kjRealName;
+      diag.kj_nameBytes = kjRealName.split('').map(function(c){ return c.charCodeAt(0); }).join(',');
     }
 
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'OK',
-        message: 'Kelb-Ket Bot Sheets API ishlayapti!',
+        locale: locale,
         sheets: names,
-        dashDiagnostics: dashDiagnostics
+        diag: diag
       }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
