@@ -5,9 +5,18 @@
 var SPREADSHEET_ID = '1RAowRWq5_U4Ve1sedNbn12PZFdfXYrPUT-UGhYugr80';
 
 function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'OK', message: 'Kelb-Ket Bot Sheets API ishlayapti!' }))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    var ss = getSS();
+    var sheets = ss.getSheets();
+    var names = sheets.map(function(s) { return s.getName(); });
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'OK', message: 'Kelb-Ket Bot Sheets API ishlayapti!', sheets: names }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'ERROR', error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function getSS() {
