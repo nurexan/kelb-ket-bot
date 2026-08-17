@@ -9,8 +9,26 @@ function doGet(e) {
     var ss = getSS();
     var sheets = ss.getSheets();
     var names = sheets.map(function(s) { return s.getName(); });
+    
+    var kj = getSheetFlexible(ss, 'Kunlik_jurnal');
+    var kjData = [];
+    if (kj) {
+      var lastRow = kj.getLastRow();
+      var startRow = Math.max(1, lastRow - 20);
+      var numRows = lastRow - startRow + 1;
+      if (numRows > 0) {
+        kjData = kj.getRange(startRow, 1, numRows, kj.getLastColumn() || 7).getValues();
+      }
+    }
+    
     return ContentService
-      .createTextOutput(JSON.stringify({ status: 'OK', message: 'Kelb-Ket Bot Sheets API ishlayapti!', sheets: names }))
+      .createTextOutput(JSON.stringify({ 
+        status: 'OK', 
+        message: 'Kelb-Ket Bot Sheets API ishlayapti!', 
+        sheets: names,
+        lastKjRow: kj ? kj.getLastRow() : 0,
+        kjData: kjData
+      }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService
@@ -214,14 +232,14 @@ function addEmployeeToDashboard(dashSheet, employeeName, kjName) {
   if (!exists && emptyRow > 0) {
     var r = emptyRow;
     var safeKjName = "'" + kjName.replace(/'/g, "''") + "'";
-    dashSheet.getRange(r, 1).setFormula('=IF($B'+r+'="";"";ROW()-10)');
+    dashSheet.getRange(r, 1).setFormula('=IF($B'+r+'="","",ROW()-10)');
     dashSheet.getRange(r, 2).setValue(employeeName);
-    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Vaqtida*"));"")');
-    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Kechikdi"));"")');
-    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Sababli*"));"")');
-    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Kelmadi"));"")');
-    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B'+r+'="";SUM(C'+r+':F'+r+')=0);"";C'+r+'/SUM(C'+r+':F'+r+'));"")');
-    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B'+r+'="";"";SUMIFS('+safeKjName+'!$G:$G;'+safeKjName+'!$B:$B;$B'+r+'));"")');
+    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Vaqtida*")),"")');
+    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Kechikdi")),"")');
+    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Sababli*")),"")');
+    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Kelmadi")),"")');
+    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B'+r+'="",SUM(C'+r+':F'+r+')=0),"",C'+r+'/SUM(C'+r+':F'+r+')),"")');
+    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B'+r+'="","",SUMIFS('+safeKjName+'!$G:$G,'+safeKjName+'!$B:$B,$B'+r+')),"")');
     dashSheet.getRange(r, 7).setNumberFormat('0%');
     dashSheet.getRange(r, 8).setNumberFormat('#,##0" so\'m"');
   }
@@ -236,25 +254,25 @@ function fixDashboardFormulas() {
   var safeKjName = "'" + kjName.replace(/'/g, "''") + "'";
 
   for (var r = 11; r <= 200; r++) {
-    dashSheet.getRange(r, 1).setFormula('=IF($B'+r+'="";"";ROW()-10)');
-    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Vaqtida*"));"")');
-    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Kechikdi"));"")');
-    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Sababli*"));"")');
-    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B'+r+'="";"";COUNTIFS('+safeKjName+'!$B:$B;$B'+r+';'+safeKjName+'!$F:$F;"Kelmadi"));"")');
-    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B'+r+'="";SUM(C'+r+':F'+r+')=0);"";C'+r+'/SUM(C'+r+':F'+r+'));"")');
-    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B'+r+'="";"";SUMIFS('+safeKjName+'!$G:$G;'+safeKjName+'!$B:$B;$B'+r+'));"")');
+    dashSheet.getRange(r, 1).setFormula('=IF($B'+r+'="","",ROW()-10)');
+    dashSheet.getRange(r, 3).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Vaqtida*")),"")');
+    dashSheet.getRange(r, 4).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Kechikdi")),"")');
+    dashSheet.getRange(r, 5).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Sababli*")),"")');
+    dashSheet.getRange(r, 6).setFormula('=IFERROR(IF($B'+r+'="","",COUNTIFS('+safeKjName+'!$B:$B,$B'+r+','+safeKjName+'!$E:$E,"Kelmadi")),"")');
+    dashSheet.getRange(r, 7).setFormula('=IFERROR(IF(OR($B'+r+'="",SUM(C'+r+':F'+r+')=0),"",C'+r+'/SUM(C'+r+':F'+r+')),"")');
+    dashSheet.getRange(r, 8).setFormula('=IFERROR(IF($B'+r+'="","",SUMIFS('+safeKjName+'!$G:$G,'+safeKjName+'!$B:$B,$B'+r+')),"")');
   }
 
   dashSheet.getRange('G11:G200').setNumberFormat('0%');
   dashSheet.getRange('H11:H200').setNumberFormat('#,##0" so\'m"');
 
   try {
-    dashSheet.getRange('B7').setFormula('=IFERROR(COUNTA(B11:B200); 0)');
-    dashSheet.getRange('C7').setFormula('=IFERROR(SUM(C11:C200)/SUM(C11:F200); 0)'); // wait, SUM(C11:F200) not SUM(C11:F11)
+    dashSheet.getRange('B7').setFormula('=IFERROR(COUNTA(B11:B200), 0)');
+    dashSheet.getRange('C7').setFormula('=IFERROR(SUM(C11:C200)/SUM(C11:F200), 0)'); // wait, SUM(C11:F200) not SUM(C11:F11)
     dashSheet.getRange('C7').setNumberFormat('0%');
-    dashSheet.getRange('E7').setFormula('=IFERROR(SUM(D11:D200); 0)');
+    dashSheet.getRange('E7').setFormula('=IFERROR(SUM(D11:D200), 0)');
     dashSheet.getRange('E7').setNumberFormat('#,##0');
-    dashSheet.getRange('G7').setFormula('=IFERROR(SUM(H11:H200); 0)');
+    dashSheet.getRange('G7').setFormula('=IFERROR(SUM(H11:H200), 0)');
     dashSheet.getRange('G7').setNumberFormat('#,##0" so\'m"');
   } catch (e7) {}
 
